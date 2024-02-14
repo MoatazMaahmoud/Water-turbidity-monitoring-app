@@ -1,0 +1,203 @@
+<!DOCTYPE HTML>
+<html lang="en-US">
+
+<head>
+    <meta charset="UTF-8">
+
+    <title>AquaGlow</title>
+    <link rel="icon" href="Untitled design(10).png" type="image/x-icon">
+    <meta name="description" content="A sample website, nothing fancy">
+    <meta http-equiv="author" content="Francisco Campos Arias">
+    <meta name="keywords" content="html, css, web, design, sample, practice">
+
+    <!-- Link to FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href='https://fonts.googleapis.com/css?family=Montserrat' rel='stylesheet'>
+    <!-- Modern styles -->
+    <style>
+        body {
+            font-family: 'Montserrat', 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: url('https://i.pinimg.com/originals/56/7b/5f/567b5f892d3aa858d3d8b0ccabca98d8.jpg') no-repeat center center fixed;
+            background-size: cover;
+        }
+
+        img {
+            height: 100px;
+            margin-bottom: 20px;
+        }
+
+        .container {
+            background-color: rgba(218, 218, 218, 0.8);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .label-icon {
+            margin-right: 10px;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            transition: border-color 0.3s ease, transform 0.2s ease;
+            /* Smooth transition for border color and transform */
+            border: 1px solid #ccc;
+            /* Initial border color */
+        }
+
+        input.error {
+            border-color: red;
+            animation: shake 0.2s ease-in-out;
+            /* Shake animation */
+        }
+
+        @keyframes shake {
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25%,
+            75% {
+                transform: translateX(-5px);
+            }
+
+            50% {
+                transform: translateX(5px);
+            }
+        }
+
+        button {
+            background-color: #3496ce;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: 'Montserrat', 'Arial', sans-serif;
+        }
+
+        button:hover {
+            background-color: #165980;
+        }
+
+        #pHDisplay {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        /* Style the disabled state of the button */
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Container -->
+    <div class="container">
+        <img src="AQua.png" alt="AquaGlow Logo">
+        <label for="lowThreshold">
+            <span class="label-icon"><i class="fas fa-tachometer-alt"></i></span>
+            Low Threshold:
+        </label>
+        <input type="text" id="lowThreshold" oninput="validateInput(this)">
+        <button id="setThresholdButton" onclick="setThreshold()" disabled><i class="fas fa-cogs"></i> Set Threshold</button>
+        <div id="pHDisplay"></div>
+    </div>
+    <div id="connectionresult"></div>
+    <div id="settingresult"></div>
+    <!-- JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+    <script>
+        var client = new Paho.MQTT.Client("172.201.248.158", 8443, "webClient_" + Math.random().toString(16).substr(2, 8));
+
+        client.onConnectionLost = onConnectionLost;
+        client.onMessageArrived = onMessageArrived;
+
+        client.connect({
+            onSuccess: onConnect,
+            onFailure: onFailure,
+        });
+
+        function onConnect() {
+            console.log("Connected to MQTT broker");
+            client.subscribe("water_quality/pH");
+            document.getElementById("connectionresult").innerHTML = "Connected to MQTT broker";
+        }
+
+        function onFailure(message) {
+            console.error("Connection failed: " + message.errorMessage);
+            document.getElementById("connectionresult").innerHTML = "MQTT client is not connected.";
+        }
+
+        function onConnectionLost(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                console.error("Connection lost: " + responseObject.errorMessage);
+            }
+        }
+
+        function setThreshold() {
+            console.log("Setting threshold...");
+
+            // Check if the client is defined before attempting to send
+            if (client && client.isConnected()) {
+                var low = document.getElementById("lowThreshold").value;
+
+                // Check if the input is a valid number
+                if (!isNaN(low) && low !== "") {
+                    // Publish new threshold to the server
+                    client.send("water_quality/threshold", low);
+                    document.getElementById("settingresult").innerHTML = "Threshold set successfully.";
+
+                    // Disable the button after successful threshold setting
+                    document.getElementById("setThresholdButton").disabled = true;
+                } else {
+                    document.getElementById("settingresult").innerHTML = "Please enter a valid number for the threshold.";
+                }
+            } else {
+                document.getElementById("connectionresult").innerHTML = "Failed to set threshold. MQTT client is not connected.";
+            }
+        }
+
+        function onMessageArrived(message) {
+            document.getElementById("pHDisplay").innerHTML = "Turbidity: " + message.payloadString;
+        }
+
+        function validateInput(input) {
+            var value = input.value;
+            var isValid = !isNaN(value) && value !== "";
+
+            if (isValid) {
+                input.classList.remove("error");
+                // Enable the button if the input is valid
+                document.getElementById("setThresholdButton").disabled = false;
+            } else {
+                input.classList.add("error");
+                // Disable the button if the input is not valid
+                document.getElementById("setThresholdButton").disabled = true;
+            }
+        }
+    </script>
+</body>
+
+</html>
